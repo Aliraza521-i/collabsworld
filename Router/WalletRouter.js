@@ -5,7 +5,9 @@ import {
   addPaymentMethod,
   getWithdrawalHistory,
   updateWithdrawalSettings,
-  getEarningsAnalytics
+  getEarningsAnalytics,
+  addFunds,
+  deductFundsForOrder
 } from "../controller/WalletController.js";
 import { authenticateToken, requireRole as authorize } from "../middleware/auth.js";
 import { uploadMiddleware } from "../middleware/upload.js";
@@ -17,6 +19,8 @@ router.use(authenticateToken);
 
 // Wallet Balance and Summary Routes
 router.get("/balance", getUserWallet);
+router.post("/add-funds", addFunds);
+router.post("/deduct-funds", deductFundsForOrder);
 router.get("/transactions", getTransactionHistory);
 
 // Payment Methods Management

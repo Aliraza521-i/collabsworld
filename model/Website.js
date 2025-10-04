@@ -215,6 +215,68 @@ const websiteSchema = new mongoose.Schema(
         default: 0,
         min: 0,
         max: 100,
+      },
+      // Ahrefs metrics
+      ahrefsDomainRating: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+      urlRating: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+      ahrefsTraffic: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      // SEMrush metrics
+      semrushRank: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      semrushTraffic: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      semrushKeywords: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      // Additional metrics
+      pageAuthority: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+      referringDomains: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      externalLinks: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      mozRank: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 10,
+      },
+      organicTraffic: {
+        type: Number,
+        default: 0,
+        min: 0,
       }
     },
     

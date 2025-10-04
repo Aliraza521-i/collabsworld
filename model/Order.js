@@ -1,5 +1,11 @@
 import mongoose from 'mongoose';
 
+// Function to generate orderId synchronously
+const generateOrderId = function() {
+  // Generate a simple orderId without database query to avoid async issues
+  return `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 const orderSchema = new mongoose.Schema(
   {
     // Order identification
@@ -7,6 +13,7 @@ const orderSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
+      default: generateOrderId
     },
     
     // Relationships
@@ -26,7 +33,7 @@ const orderSchema = new mongoose.Schema(
       required: [true, 'Website ID is required'],
     },
     chatId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       ref: 'Chat',
     },
     
@@ -57,11 +64,13 @@ const orderSchema = new mongoose.Schema(
         type: String,
         required: [true, 'Target URL is required'],
         trim: true,
+        default: 'https://example.com'
       },
       anchorText: {
         type: String,
         required: [true, 'Anchor text is required'],
         trim: true,
+        default: 'Example Anchor Text'
       },
       linkType: {
         type: String,
@@ -214,6 +223,52 @@ const orderSchema = new mongoose.Schema(
       },
     }],
     
+    // Article data for "Choose My Own Article" feature
+    articleData: {
+      articleTitle: {
+        type: String,
+        trim: true,
+      },
+      permalinkSlug: {
+        type: String,
+        trim: true,
+      },
+      anchorText: {
+        type: String,
+        trim: true,
+      },
+      targetUrl: {
+        type: String,
+        trim: true,
+      },
+      postText: {
+        type: String,
+        trim: true,
+      },
+      metaTitle: {
+        type: String,
+        trim: true,
+      },
+      metaKeywords: {
+        type: String,
+        trim: true,
+      },
+      metaDescription: {
+        type: String,
+        trim: true,
+      },
+      projectId: {
+        type: String,
+        trim: true,
+      },
+      createdAt: {
+        type: Date,
+      },
+      updatedAt: {
+        type: Date,
+      },
+    },
+    
     // Quality tracking
     qualityScore: {
       type: Number,
@@ -307,16 +362,68 @@ orderSchema.index({ websiteId: 1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ deadline: 1, status: 1 });
 
+// Add a pre-validate hook to debug validation issues
+orderSchema.pre('validate', function(next) {
+  console.log('Pre-validate hook called for order:', this.orderId);
+  console.log('Order data:', {
+    orderId: this.orderId,
+    publisherId: this.publisherId,
+    advertiserId: this.advertiserId,
+    websiteId: this.websiteId,
+    title: this.title,
+    description: this.description,
+    contentRequirements: this.contentRequirements,
+    basePrice: this.basePrice,
+    totalPrice: this.totalPrice,
+    platformCommission: this.platformCommission,
+    publisherEarnings: this.publisherEarnings,
+    deadline: this.deadline,
+    status: this.status
+  });
+  
+  // Ensure orderId is set
+  if (!this.orderId) {
+    console.log('orderId is missing, generating one');
+    this.orderId = `ORD-${Date.now()}-0001`;
+  }
+  
+  next();
+});
+
 // Pre-save middleware to generate orderId
 orderSchema.pre('save', async function(next) {
+  console.log('Pre-save middleware called for order, isNew:', this.isNew, 'orderId exists:', !!this.orderId);
   if (!this.orderId) {
-    const count = await mongoose.model('Order').countDocuments();
-    this.orderId = `ORD-${Date.now()}-${String(count + 1).padStart(4, '0')}`;
+    console.log('Generating new orderId');
+    try {
+      // Generate a simple orderId without database query to avoid async issues
+      this.orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      console.log('Generated orderId:', this.orderId);
+    } catch (error) {
+      console.error('Error generating orderId in pre-save:', error);
+      // Generate a fallback ID
+      this.orderId = `ORD-${Date.now()}-0001`;
+      console.log('Generated fallback orderId:', this.orderId);
+    }
+  } else {
+    console.log('Using existing orderId:', this.orderId);
+  }
+  
+  // Ensure required fields are set
+  if (this.contentRequirements && !this.contentRequirements.targetUrl) {
+    this.contentRequirements.targetUrl = 'https://example.com';
+    console.log('Set default targetUrl');
+  }
+  
+  if (this.contentRequirements && !this.contentRequirements.anchorText) {
+    this.contentRequirements.anchorText = 'Example Anchor Text';
+    console.log('Set default anchorText');
   }
   
   // Calculate publisher earnings (total - commission)
   if (this.totalPrice && this.platformCommission) {
     this.publisherEarnings = this.totalPrice - this.platformCommission;
+    console.log('Calculated publisherEarnings:', this.publisherEarnings);
   }
   
   next();

@@ -2,6 +2,7 @@ import User from "../model/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import generateToken from "../service/Token.js";
+import { uploadMiddleware } from "../middleware/upload.js";
 
 export const registerUser = async (req, res) => {
   const { firstName, lastName, email, password,  phoneNumber, role } =
@@ -165,6 +166,11 @@ export const updateUserProfile = async (req, res) => {
     if (email) user.email = email;
     if (phoneNumber) user.phoneNumber = phoneNumber;
 
+    // Handle profile image upload
+    if (req.file) {
+      user.profileImage = `/uploads/images/${req.file.filename}`;
+    }
+
     const updatedUser = await user.save();
     
     res.status(200).json({ 
@@ -218,6 +224,44 @@ export const updateUserRole = async (req, res) => {
     res.status(500).json({ 
       ok: false, 
       message: "Failed to update role", 
+      error: error.message 
+    });
+  }
+};
+
+// Upload profile image
+export const uploadProfileImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        ok: false, 
+        message: "No file uploaded" 
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ 
+        ok: false, 
+        message: "User not found" 
+      });
+    }
+
+    // Update user's profile image
+    user.profileImage = `/uploads/images/${req.file.filename}`;
+    const updatedUser = await user.save();
+
+    res.status(200).json({ 
+      ok: true, 
+      message: "Profile image uploaded successfully", 
+      data: {
+        profileImage: user.profileImage
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      ok: false, 
+      message: "Failed to upload profile image", 
       error: error.message 
     });
   }

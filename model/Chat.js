@@ -1,5 +1,11 @@
 import mongoose from 'mongoose';
 
+// Function to generate chatId synchronously
+const generateChatId = function() {
+  // Generate a simple chatId without database query to avoid async issues
+  return `CHAT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 const messageSchema = new mongoose.Schema(
   {
     senderId: {
@@ -72,6 +78,7 @@ const chatSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
+      default: generateChatId
     },
     
     // Chat type and participants
@@ -112,7 +119,7 @@ const chatSchema = new mongoose.Schema(
     
     // Related entities
     orderId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       ref: 'Order',
     },
     websiteId: {
@@ -232,9 +239,14 @@ const chatSchema = new mongoose.Schema(
 
 // Pre-save middleware to generate chat ID
 chatSchema.pre('save', async function(next) {
+  console.log('Pre-save middleware called for chat, chatId exists:', !!this.chatId);
   if (!this.chatId) {
-    const count = await mongoose.model('Chat').countDocuments();
-    this.chatId = `CHAT-${Date.now()}-${String(count + 1).padStart(5, '0')}`;
+    console.log('Generating new chatId');
+    // Generate a simple chatId without database query to avoid async issues
+    this.chatId = `CHAT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log('Generated chatId:', this.chatId);
+  } else {
+    console.log('Using existing chatId:', this.chatId);
   }
   
   // Update stats
@@ -256,6 +268,12 @@ chatSchema.index({ 'flags.hasUnreadMessages': 1 });
 const Chat = mongoose.model('Chat', chatSchema);
 
 export default Chat;
+
+
+
+
+
+
 
 
 

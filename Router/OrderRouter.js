@@ -8,7 +8,10 @@ import {
   createOrder,
   getOrderDetails,
   addOrderMessage,
-  createOrderChat
+  createOrderChat,
+  processOrderWithBalance,
+  saveArticleData,
+  getArticleData
 } from "../controller/OrderController.js";
 import { authenticateToken, requirePublisher, requireAdvertiser } from "../middleware/auth.js";
 
@@ -28,10 +31,15 @@ router.put("/:orderId/submit", requirePublisher, submitOrder);
 
 // Advertiser Order Management
 router.post("/", requireAdvertiser, createOrder);
+router.post("/process-with-balance", requireAdvertiser, processOrderWithBalance);
 
 // Shared endpoints (both publisher and advertiser)
 router.get("/:orderId", getOrderDetails);
 router.post("/:orderId/messages", addOrderMessage);
 router.post("/:orderId/chat", createOrderChat);
+
+// Article data endpoints
+router.post("/:orderId/article", saveArticleData);
+router.get("/:orderId/article", getArticleData);
 
 export default router;

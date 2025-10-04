@@ -32,6 +32,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Password is required'],
     },
+    profileImage: {
+      type: String,
+      default: null
+    },
     favorites: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Website'

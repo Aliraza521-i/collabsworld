@@ -342,11 +342,23 @@ export const getPendingWebsites = async (req, res) => {
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
+    // Add allCategories field to each website for consistent display
+    const websitesWithAllCategories = websites.map(website => {
+      const websiteObj = website.toObject();
+      // Parse categories from the category field if they are stored as a comma-separated string
+      websiteObj.allCategories = websiteObj.category 
+        ? websiteObj.category.split(', ').map(cat => cat.trim()) 
+        : [];
+      // Ensure additionalCategories is always an empty array
+      websiteObj.additionalCategories = [];
+      return websiteObj;
+    });
+
     const total = await Website.countDocuments(filter);
 
     res.status(200).json({
       ok: true,
-      data: websites,
+      data: websitesWithAllCategories,
       pagination: {
         current: parseInt(page),
         pages: Math.ceil(total / limit),
@@ -403,11 +415,23 @@ export const getAllWebsites = async (req, res) => {
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
+    // Add allCategories field to each website for consistent display
+    const websitesWithAllCategories = websites.map(website => {
+      const websiteObj = website.toObject();
+      // Parse categories from the category field if they are stored as a comma-separated string
+      websiteObj.allCategories = websiteObj.category 
+        ? websiteObj.category.split(', ').map(cat => cat.trim()) 
+        : [];
+      // Ensure additionalCategories is always an empty array
+      websiteObj.additionalCategories = [];
+      return websiteObj;
+    });
+
     const total = await Website.countDocuments(filter);
 
     res.status(200).json({
       ok: true,
-      data: websites,
+      data: websitesWithAllCategories,
       pagination: {
         current: parseInt(page),
         pages: Math.ceil(total / limit),

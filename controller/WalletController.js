@@ -122,6 +122,65 @@ export const addPaymentMethod = async (req, res) => {
   }
 };
 
+// Add Funds to Wallet
+export const addFunds = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount } = req.body;
+
+    // Validate amount
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        ok: false,
+        message: "Invalid amount"
+      });
+    }
+
+    // Get user wallet
+    let wallet = await Wallet.findOne({ userId });
+    
+    // Create wallet if it doesn't exist
+    if (!wallet) {
+      wallet = await Wallet.create({ userId });
+    }
+
+    // Add funds to wallet
+    const oldBalance = wallet.balance;
+    wallet.balance += amount;
+    await wallet.save();
+
+    // Create transaction record
+    const transaction = new Transaction({
+      userId,
+      walletId: wallet._id,
+      type: 'deposit',
+      amount: amount,
+      currency: wallet.currency,
+      description: `Deposit of $${amount}`,
+      balanceBefore: oldBalance,
+      balanceAfter: wallet.balance,
+      status: 'completed'
+    });
+
+    await transaction.save();
+
+    res.status(200).json({
+      ok: true,
+      message: "Funds added successfully",
+      data: {
+        wallet,
+        transaction
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: "Failed to add funds",
+      error: error.message
+    });
+  }
+};
+
 // Request Withdrawal
 export const requestWithdrawal = async (req, res) => {
   try {
@@ -559,6 +618,76 @@ const calculateProcessingFee = (paymentType, amount) => {
   }
 };
 
+// Deduct funds from wallet for order placement
+export const deductFundsForOrder = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount, orderId, description } = req.body;
+
+    // Validate amount
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        ok: false,
+        message: "Invalid amount"
+      });
+    }
+
+    // Get user wallet
+    const wallet = await Wallet.findOne({ userId });
+    if (!wallet) {
+      return res.status(404).json({
+        ok: false,
+        message: "Wallet not found"
+      });
+    }
+
+    // Check if user has sufficient balance
+    if (wallet.balance < amount) {
+      return res.status(400).json({
+        ok: false,
+        message: "Insufficient balance"
+      });
+    }
+
+    // Deduct funds from wallet
+    const oldBalance = wallet.balance;
+    wallet.balance -= amount;
+    wallet.totalEarnings += amount; // This might need adjustment based on business logic
+    await wallet.save();
+
+    // Create transaction record
+    const transaction = new Transaction({
+      userId,
+      walletId: wallet._id,
+      type: 'deposit',
+      amount: -amount, // Negative because it's a deduction
+      currency: wallet.currency,
+      balanceBefore: oldBalance,
+      balanceAfter: wallet.balance,
+      orderId: orderId || null,
+      description: description || `Payment for order`,
+      status: 'completed'
+    });
+
+    await transaction.save();
+
+    res.status(200).json({
+      ok: true,
+      message: "Funds deducted successfully",
+      data: {
+        wallet,
+        transaction
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: "Failed to deduct funds",
+      error: error.message
+    });
+  }
+};
+
 export default {
   getUserWallet,
   addPaymentMethod,
@@ -566,5 +695,7 @@ export default {
   getTransactionHistory,
   getWithdrawalHistory,
   updateWithdrawalSettings,
-  getEarningsAnalytics
+  getEarningsAnalytics,
+  addFunds,
+  deductFundsForOrder
 };

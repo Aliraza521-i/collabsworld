@@ -1,6 +1,7 @@
 import Order from "../model/Order.js";
 import Website from "../model/Website.js";
 import User from "../model/User.js";
+import Transaction from "../model/Transaction.js";
 import mongoose from "mongoose";
 
 // Get dashboard data for publisher (Home tab)
@@ -253,7 +254,7 @@ export const approveOrder = async (req, res) => {
     const { estimatedDelivery, additionalNotes } = req.body;
 
     const order = await Order.findOne({
-      _id: orderId,
+      orderId: orderId,
       publisherId,
       status: 'pending'
     });
@@ -305,7 +306,7 @@ export const rejectOrder = async (req, res) => {
     }
 
     const order = await Order.findOne({
-      _id: orderId,
+      orderId: orderId,
       publisherId,
       status: 'pending'
     });
@@ -352,7 +353,7 @@ export const submitOrder = async (req, res) => {
     }
 
     const order = await Order.findOne({
-      _id: orderId,
+      orderId: orderId,
       publisherId,
       status: { $in: ['approved', 'in_progress', 'revision_requested'] }
     });
@@ -485,9 +486,9 @@ export const createOrder = async (req, res) => {
           }
         }
       ],
-      orderId: savedOrder._id,
-      title: `Order #${savedOrder.orderId}: ${title}`,
-      description: `Chat for order "${title}"`,
+      orderId: savedOrder.orderId,
+      title: `Order #${savedOrder.orderId}: ${website.domain}`,
+      description: `Chat for order on ${website.domain}`,
       status: 'active',
       priority: 'normal'
     });
@@ -525,16 +526,8 @@ export const getOrderDetails = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    // Validate order ID
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      return res.status(400).json({
-        ok: false,
-        message: "Invalid order ID"
-      });
-    }
-
     // Find order and populate related data
-    const order = await Order.findById(orderId)
+    const order = await Order.findOne({ orderId: orderId })
       .populate('advertiserId', 'firstName lastName email')
       .populate('publisherId', 'firstName lastName email')
       .populate('websiteId', 'domain siteDescription category publishingPrice copywritingPrice')
@@ -590,7 +583,7 @@ export const addOrderMessage = async (req, res) => {
     }
 
     const order = await Order.findOne({
-      _id: orderId,
+      orderId: orderId,
       $or: [
         { publisherId: userId },
         { advertiserId: userId }
@@ -635,7 +628,7 @@ export const createOrderChat = async (req, res) => {
 
     // Find order and check if user has permission
     const order = await Order.findOne({
-      _id: orderId,
+      orderId: orderId,
       $or: [
         { publisherId: userId },
         { advertiserId: userId }
@@ -685,7 +678,7 @@ export const createOrderChat = async (req, res) => {
           }
         }
       ],
-      orderId: order._id,
+      orderId: order.orderId,
       title: `Order #${order.orderId}: ${order.title}`,
       description: `Chat for order "${order.title}"`,
       status: 'active',
@@ -712,6 +705,517 @@ export const createOrderChat = async (req, res) => {
   }
 };
 
+// Process order with account balance deduction
+export const processOrderWithBalance = async (req, res) => {
+  try {
+    const advertiserId = req.user.id;
+    const { cartItems } = req.body;
+
+    if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        message: "Cart items are required"
+      });
+    }
+
+    // Import required models
+    const Wallet = await import('../model/Wallet.js').then(module => module.default);
+    const Website = await import('../model/Website.js').then(module => module.default);
+    const User = await import('../model/User.js').then(module => module.default);
+    const Chat = await import('../model/Chat.js').then(module => module.default);
+
+    // Get advertiser's wallet
+    const wallet = await Wallet.findOne({ userId: advertiserId });
+    if (!wallet) {
+      return res.status(404).json({
+        ok: false,
+        message: "Wallet not found"
+      });
+    }
+
+    // Calculate total amount
+    let totalAmount = 0;
+    const orderDetails = [];
+
+    // Validate each item and calculate total
+    for (const item of cartItems) {
+      const website = await Website.findById(item.id);
+      if (!website || website.status !== 'approved') {
+        return res.status(400).json({
+          ok: false,
+          message: `Website ${item.websiteName} not found or not approved`
+        });
+      }
+
+      // Calculate item total including all charges
+      let itemTotal = item.price || 0;
+      
+      // Add sensitive content charge if applicable
+      if (item.sensitiveTopic && item.sensitiveContentExtraCharge) {
+        itemTotal += item.sensitiveContentExtraCharge;
+      }
+      
+      // Add homepage announcement charge if applicable
+      if (item.homepageAnnouncement && item.homepageAnnouncementPrice) {
+        itemTotal += item.homepageAnnouncementPrice;
+      }
+      
+      // Add copywriting charge if applicable
+      if (item.articleType === 'publisher' && item.copywritingPrice) {
+        itemTotal += item.copywritingPrice;
+      }
+
+      totalAmount += itemTotal;
+      
+      orderDetails.push({
+        websiteId: item.id,
+        website,
+        itemTotal,
+        item
+      });
+    }
+
+    // Check if sufficient balance
+    if (wallet.balance < totalAmount) {
+      return res.status(400).json({
+        ok: false,
+        message: "Insufficient account balance"
+      });
+    }
+
+    // Start transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Deduct balance from wallet
+      const oldBalance = wallet.balance;
+      wallet.balance -= totalAmount;
+      wallet.totalEarnings += totalAmount; // This might need adjustment based on business logic
+      await wallet.save({ session });
+      
+      console.log('Wallet updated successfully');
+
+      // Create orders and transactions
+      const createdOrders = [];
+      const transactionRecords = [];
+      
+      console.log('Creating orders...');
+
+      for (const orderDetail of orderDetails) {
+        console.log('Processing order detail:', orderDetail);
+        const { website, itemTotal, item } = orderDetail;
+        
+        // Calculate pricing details
+        const basePrice = item.price || 0;
+        const additionalCharges = {
+          copywriting: item.articleType === 'publisher' && item.copywritingPrice ? item.copywritingPrice : 0,
+          sensitiveContent: item.sensitiveTopic && item.sensitiveContentExtraCharge ? item.sensitiveContentExtraCharge : 0,
+          homepageAnnouncement: item.homepageAnnouncement && item.homepageAnnouncementPrice ? item.homepageAnnouncementPrice : 0
+        };
+
+        const totalPrice = basePrice + 
+                          additionalCharges.copywriting + 
+                          additionalCharges.sensitiveContent + 
+                          additionalCharges.homepageAnnouncement;
+                          
+        const platformCommission = totalPrice * 0.1; // 10% platform commission
+        const publisherEarnings = totalPrice - platformCommission;
+
+        // Ensure required fields are present
+        const targetUrl = item.targetUrl || 'https://example.com'; // Provide a default URL
+        const anchorText = item.anchorText || 'Example Anchor Text'; // Provide default anchor text
+        const articleRequirements = item.articleRequirements || '';
+        
+        console.log('Calculated pricing details:', {
+          basePrice,
+          additionalCharges,
+          totalPrice,
+          platformCommission,
+          publisherEarnings,
+          targetUrl,
+          anchorText,
+          articleRequirements
+        });
+
+        // Log the order data before creating
+        console.log('Creating order with data:', {
+          publisherId: website.userId,
+          advertiserId,
+          websiteId: website._id,
+          title: `Order for ${website.domain}`,
+          description: `Guest post order for ${website.domain}`,
+          contentRequirements: {
+            wordCount: 800, // Default value
+            targetUrl: targetUrl,
+            anchorText: anchorText,
+            linkType: 'dofollow', // Default value
+            needsCopywriting: item.articleType === 'publisher',
+            additionalInstructions: articleRequirements
+          },
+          basePrice,
+          additionalCharges,
+          totalPrice,
+          platformCommission,
+          publisherEarnings,
+          deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
+          rushOrder: false,
+          status: 'pending'
+        });
+
+        // Create the order
+        console.log('Creating new Order object with data:', {
+          publisherId: website.userId,
+          advertiserId,
+          websiteId: website._id,
+          title: `Order for ${website.domain}`,
+          description: `Guest post order for ${website.domain}`,
+          contentRequirements: {
+            wordCount: 800, // Default value
+            targetUrl: targetUrl,
+            anchorText: anchorText,
+            linkType: 'dofollow', // Default value
+            needsCopywriting: item.articleType === 'publisher',
+            additionalInstructions: articleRequirements
+          },
+          basePrice,
+          additionalCharges,
+          totalPrice,
+          platformCommission,
+          publisherEarnings,
+          deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
+          rushOrder: false,
+          status: 'pending'
+        });
+        
+        const order = new Order({
+          publisherId: website.userId,
+          advertiserId,
+          websiteId: website._id,
+          title: `Order for ${website.domain}`,
+          description: `Guest post order for ${website.domain}`,
+          contentRequirements: {
+            wordCount: 800, // Default value
+            targetUrl: targetUrl,
+            anchorText: anchorText,
+            linkType: 'dofollow', // Default value
+            needsCopywriting: item.articleType === 'publisher',
+            additionalInstructions: articleRequirements
+          },
+          basePrice,
+          additionalCharges,
+          totalPrice,
+          platformCommission,
+          publisherEarnings,
+          deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
+          rushOrder: false,
+          status: 'pending'
+        });
+        
+        // Log the order object before validation
+        console.log('Order object created:', JSON.stringify(order, null, 2));
+        console.log('Order orderId before validation:', order.orderId);
+
+        // Validate the order before saving
+        const validationError = order.validateSync();
+        if (validationError) {
+          console.error('Order validation error:', validationError);
+          console.error('Order data that failed validation:', {
+            publisherId: website.userId,
+            advertiserId,
+            websiteId: website._id,
+            title: `Order for ${website.domain}`,
+            description: `Guest post order for ${website.domain}`,
+            contentRequirements: {
+              wordCount: 800, // Default value
+              targetUrl: targetUrl,
+              anchorText: anchorText,
+              linkType: 'dofollow', // Default value
+              needsCopywriting: item.articleType === 'publisher',
+              additionalInstructions: articleRequirements
+            },
+            basePrice,
+            additionalCharges,
+            totalPrice,
+            platformCommission,
+            publisherEarnings,
+            deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
+            rushOrder: false,
+            status: 'pending'
+          });
+          throw new Error(`Order validation failed: ${validationError.message}`);
+        }
+        
+        console.log('Order passed validation, saving...');
+
+        const savedOrder = await order.save({ session });
+        console.log('Order saved successfully:', savedOrder.orderId);
+        createdOrders.push(savedOrder);
+
+        // Create transaction record for advertiser
+        console.log('Creating advertiser transaction with data:', {
+          userId: advertiserId,
+          walletId: wallet._id,
+          type: 'deposit',
+          amount: -itemTotal, // Negative because it's a deduction
+          currency: wallet.currency,
+          balanceBefore: oldBalance,
+          balanceAfter: wallet.balance,
+          orderId: savedOrder.orderId,
+          description: `Payment for order #${savedOrder.orderId} for ${website.domain}`,
+          status: 'completed'
+        });
+        
+        const advertiserTransaction = new Transaction({
+          userId: advertiserId,
+          walletId: wallet._id,
+          type: 'deposit',
+          amount: -itemTotal, // Negative because it's a deduction
+          currency: wallet.currency,
+          balanceBefore: oldBalance,
+          balanceAfter: wallet.balance,
+          orderId: savedOrder.orderId,
+          description: `Payment for order #${savedOrder.orderId} for ${website.domain}`,
+          status: 'completed'
+        });
+        
+        console.log('Advertiser transaction object created:', JSON.stringify(advertiserTransaction, null, 2));
+        console.log('Advertiser transaction transactionId before save:', advertiserTransaction.transactionId);
+
+        await advertiserTransaction.save({ session });
+        transactionRecords.push(advertiserTransaction);
+
+        // Create transaction record for publisher (pending until order completion)
+        const publisherWallet = await Wallet.findOne({ userId: website.userId });
+        if (publisherWallet) {
+          console.log('Creating publisher transaction with data:', {
+            userId: website.userId,
+            walletId: publisherWallet._id,
+            type: 'earning',
+            amount: publisherEarnings,
+            currency: publisherWallet.currency,
+            balanceBefore: publisherWallet.balance,
+            balanceAfter: publisherWallet.balance, // Not adding yet as it's pending
+            orderId: savedOrder.orderId,
+            description: `Earning for order #${savedOrder.orderId} for ${website.domain}`,
+            status: 'pending'
+          });
+          
+          const publisherTransaction = new Transaction({
+            userId: website.userId,
+            walletId: publisherWallet._id,
+            type: 'earning',
+            amount: publisherEarnings,
+            currency: publisherWallet.currency,
+            balanceBefore: publisherWallet.balance,
+            balanceAfter: publisherWallet.balance, // Not adding yet as it's pending
+            orderId: savedOrder.orderId,
+            description: `Earning for order #${savedOrder.orderId} for ${website.domain}`,
+            status: 'pending'
+          });
+          
+          console.log('Publisher transaction object created:', JSON.stringify(publisherTransaction, null, 2));
+          console.log('Publisher transaction transactionId before save:', publisherTransaction.transactionId);
+
+          await publisherTransaction.save({ session });
+          transactionRecords.push(publisherTransaction);
+        }
+
+        // Create a chat for this order
+        const [advertiser, publisher] = await Promise.all([
+          User.findById(advertiserId).select('firstName lastName email role'),
+          User.findById(website.userId).select('firstName lastName email role')
+        ]);
+
+        const chat = new Chat({
+          chatType: 'order',
+          participants: [
+            {
+              userId: advertiserId,
+              role: 'advertiser',
+              joinedAt: new Date(),
+              isActive: true,
+              notifications: {
+                enabled: true
+              }
+            },
+            {
+              userId: website.userId,
+              role: 'publisher',
+              joinedAt: new Date(),
+              isActive: true,
+              notifications: {
+                enabled: true
+              }
+            }
+          ],
+          orderId: savedOrder.orderId,
+          title: `Order #${savedOrder.orderId}: ${website.domain}`,
+          description: `Chat for order on ${website.domain}`,
+          status: 'active',
+          priority: 'normal'
+        });
+
+        const savedChat = await chat.save({ session });
+        
+        // Update the order with the chat ID
+        savedOrder.chatId = savedChat._id;
+        await savedOrder.save({ session });
+
+        // If article data exists, save it
+        console.log('Checking for article data for item:', item.id, 'Article data:', item.articleData);
+        if (item.articleData) {
+          console.log('Saving article data for order:', savedOrder.orderId, item.articleData);
+          // Update the order with article data
+          savedOrder.articleData = {
+            ...savedOrder.articleData,
+            ...item.articleData,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          
+          // Save the updated order
+          await savedOrder.save({ session });
+          console.log(`Article data saved for order ${savedOrder.orderId}`);
+        } else {
+          console.log('No article data to save for order:', savedOrder.orderId);
+        }
+      }
+
+      // Commit transaction
+      await session.commitTransaction();
+      session.endSession();
+
+      res.status(201).json({
+        ok: true,
+        message: "Orders processed successfully and balance deducted",
+        data: {
+          orders: createdOrders,
+          totalAmount,
+          newBalance: wallet.balance
+        }
+      });
+    } catch (error) {
+      // Abort transaction
+      await session.abortTransaction();
+      session.endSession();
+      
+      throw error;
+    }
+  } catch (error) {
+    console.error("Error processing orders with balance:", error);
+    // Log the full error stack trace
+    console.error("Error stack:", error.stack);
+    res.status(500).json({
+      ok: false,
+      message: "Failed to process orders",
+      error: error.message
+    });
+  }
+};
+
+// Save article data for an order
+export const saveArticleData = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const articleData = req.body;
+    const userId = req.user.id;
+
+    console.log('Saving article data for order:', orderId, 'User:', userId, 'Data:', articleData);
+
+    // Find order and check if user has permission
+    const order = await Order.findOne({
+      orderId: orderId,
+      $or: [
+        { publisherId: userId },
+        { advertiserId: userId }
+      ]
+    });
+
+    if (!order) {
+      console.log('Order not found or access denied for order:', orderId, 'User:', userId);
+      return res.status(404).json({
+        ok: false,
+        message: "Order not found or access denied"
+      });
+    }
+
+    // Update the order with article data
+    order.articleData = {
+      ...order.articleData,
+      ...articleData,
+      updatedAt: new Date()
+    };
+
+    // If this is the first time article data is being saved, set created date
+    if (!order.articleData.createdAt) {
+      order.articleData.createdAt = new Date();
+    }
+
+    await order.save();
+
+    console.log('Article data saved successfully for order:', orderId);
+
+    res.status(200).json({
+      ok: true,
+      message: "Article data saved successfully",
+      data: order.articleData
+    });
+  } catch (error) {
+    console.error("Error saving article data:", error);
+    res.status(500).json({
+      ok: false,
+      message: "Failed to save article data",
+      error: error.message
+    });
+  }
+};
+
+// Get article data for an order
+export const getArticleData = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const userId = req.user.id;
+
+    console.log('Retrieving article data for order:', orderId, 'User:', userId);
+
+    // Find order and check if user has permission
+    const order = await Order.findOne({
+      orderId: orderId,
+      $or: [
+        { publisherId: userId },
+        { advertiserId: userId }
+      ]
+    });
+
+    if (!order) {
+      console.log('Order not found or access denied for order:', orderId, 'User:', userId);
+      return res.status(404).json({
+        ok: false,
+        message: "Order not found or access denied"
+      });
+    }
+
+    // Return article data if it exists, otherwise return empty object
+    const articleData = order.articleData || {};
+
+    console.log('Article data retrieved successfully for order:', orderId, 'Data:', articleData);
+
+    res.status(200).json({
+      ok: true,
+      message: "Article data retrieved successfully",
+      data: articleData
+    });
+  } catch (error) {
+    console.error("Error retrieving article data:", error);
+    res.status(500).json({
+      ok: false,
+      message: "Failed to retrieve article data",
+      error: error.message
+    });
+  }
+};
+
 export default {
   getPublisherDashboard,
   getPublisherOrders,
@@ -721,5 +1225,8 @@ export default {
   createOrder,
   getOrderDetails,
   addOrderMessage,
-  createOrderChat
+  createOrderChat,
+  processOrderWithBalance,
+  saveArticleData,
+  getArticleData
 };

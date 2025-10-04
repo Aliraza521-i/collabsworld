@@ -455,9 +455,18 @@ export const getWebsite = async (req, res) => {
       });
     }
     
+    // Add allCategories field for consistent display
+    const websiteData = website.toObject();
+    // Parse categories from the category field if they are stored as a comma-separated string
+    websiteData.allCategories = websiteData.category 
+      ? websiteData.category.split(', ').map(cat => cat.trim()) 
+      : [];
+    // Ensure additionalCategories is always an empty array
+    websiteData.additionalCategories = [];
+    
     res.status(200).json({
       ok: true,
-      data: website
+      data: websiteData
     });
   } catch (error) {
     res.status(500).json({
@@ -558,17 +567,24 @@ export const updateWebsite = async (req, res) => {
       });
     }
     
-    // Don't allow updates to verified websites in certain statuses
-    if (website.status === 'approved' || website.status === 'under_moderation') {
+    // Allow updates to approved websites but set status to submitted for re-moderation
+    // Don't allow updates to websites under moderation
+    if (website.status === 'under_moderation') {
       return res.status(400).json({
         ok: false,
-        message: "Cannot update website while under moderation or approved"
+        message: "Cannot update website while under moderation"
       });
+    }
+    
+    // If website is approved, set it back to submitted for re-moderation
+    if (website.status === 'approved') {
+      website.status = 'submitted';
+      website.previousStatus = 'approved';
     }
     
     const allowedUpdates = [
       'siteDescription', 'advertisingRequirements', 'publishingSections',
-      'category', 'keywords', 'country', 'region', 'city', 'additionalCountries',
+      'category', 'additionalCategories', 'keywords', 'country', 'region', 'city', 'additionalCountries',
       'mainLanguage', 'additionalLanguages', 'publishingPrice', 'copywritingPrice',
       'homepageAnnouncementPrice', 'linkType', 'numberOfLinks', 'discountPercentage',
       'acceptedSensitiveCategories', 'sensitiveContentExtraCharge', 'articleEditingPercentage',
@@ -582,11 +598,30 @@ export const updateWebsite = async (req, res) => {
       }
     });
     
-    const updatedWebsite = await Website.findByIdAndUpdate(
-      websiteId,
-      updates,
-      { new: true, runValidators: true }
-    );
+    // Ensure additionalCategories is always an empty array since we're storing all categories in the main category field
+    updates.additionalCategories = [];
+    
+    // Update the website document with new data
+    Object.assign(website, updates);
+    
+    // Validate the updated document
+    const validationError = website.validateSync();
+    if (validationError) {
+      console.error('Validation error:', validationError.message);
+      console.error('Validation errors:', validationError.errors);
+      return res.status(400).json({
+        ok: false,
+        message: "Validation failed",
+        error: validationError.message,
+        details: Object.keys(validationError.errors).reduce((acc, key) => {
+          acc[key] = validationError.errors[key].message;
+          return acc;
+        }, {})
+      });
+    }
+    
+    // Save the updated website
+    const updatedWebsite = await website.save();
     
     res.status(200).json({
       ok: true,
@@ -594,6 +629,20 @@ export const updateWebsite = async (req, res) => {
       data: updatedWebsite
     });
   } catch (error) {
+    console.error('Error updating website:', error);
+    if (error.name === 'ValidationError') {
+      console.error('Mongoose validation error:', error.message);
+      console.error('Validation errors:', error.errors);
+      return res.status(400).json({
+        ok: false,
+        message: "Validation failed",
+        error: error.message,
+        details: Object.keys(error.errors).reduce((acc, key) => {
+          acc[key] = error.errors[key].message;
+          return acc;
+        }, {})
+      });
+    }
     res.status(500).json({
       ok: false,
       message: "Failed to update website",

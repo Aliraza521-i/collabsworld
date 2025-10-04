@@ -368,13 +368,22 @@ class SocketService {
       // Emit to all participants in the chat
       console.log('Emitting new_message to room:', `chat_${chatId}`);
       console.log('Message data:', { chatId, message: savedMessage });
+      
+      // Ensure the message has all required fields for the frontend
+      const messageForFrontend = {
+        ...savedMessage,
+        senderId: socket.userId,
+        senderName: socket.userName,
+        createdAt: new Date()
+      };
+      
       this.io.to(`chat_${chatId}`).emit('new_message', {
         chatId,
-        message: savedMessage
+        message: messageForFrontend
       });
 
       // Send push notifications to offline users
-      await this.sendNotificationsToOfflineUsers(chat, savedMessage);
+      await this.sendNotificationsToOfflineUsers(chat, messageForFrontend);
 
       console.log(`💬 Message sent in chat ${chatId} by ${socket.userName}`);
     } catch (error) {
@@ -573,8 +582,11 @@ class SocketService {
 
       // Add message to chat
       chat.messages.push(message);
-      await chat.save();
+      const updatedChat = await chat.save();
 
+      // Get the saved message with proper ID
+      const savedMessage = updatedChat.messages[updatedChat.messages.length - 1];
+      
       // If message contains personal details, send notification to admins
       if (hasPersonalDetails) {
         try {
@@ -614,11 +626,23 @@ class SocketService {
         }
       }
 
-      // Return the saved message with sender role
-      const savedMessage = chat.messages[chat.messages.length - 1];
+      // Return the saved message with all required fields
       return {
-        ...savedMessage.toObject(),
-        senderRole: senderRole
+        _id: savedMessage._id,
+        senderId: messageData.sender,
+        senderName: messageData.senderName,
+        senderRole: senderRole,
+        content: filteredContent,
+        messageType: messageData.type,
+        replyTo: messageData.replyTo,
+        attachments: messageData.attachments || [],
+        isRead: messageData.isRead || [],
+        reactions: [],
+        flags: {
+          containsPersonalDetails: hasPersonalDetails
+        },
+        createdAt: savedMessage.createdAt,
+        updatedAt: savedMessage.updatedAt
       };
     } catch (error) {
       console.error('Error saving message:', error);

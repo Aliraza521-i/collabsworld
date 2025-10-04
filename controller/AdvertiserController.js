@@ -153,6 +153,36 @@ export const browseWebsites = async (req, res) => {
       language,
       minDA,
       maxDA,
+      minDR,
+      maxDR,
+      minPA,
+      maxPA,
+      minSS,
+      maxSS,
+      minAS,
+      maxAS,
+      minTF,
+      maxTF,
+      minCF,
+      maxCF,
+      minUR,
+      maxUR,
+      minDomainAge,
+      maxDomainAge,
+      minAhrefsTraffic,
+      maxAhrefsTraffic,
+      minSemrushTraffic,
+      maxSemrushTraffic,
+      minMonthlyTraffic,
+      maxMonthlyTraffic,
+      minAhrefsKeywords,
+      maxAhrefsKeywords,
+      minSemrushKeywords,
+      maxSemrushKeywords,
+      minAhrefsReferringDomains,
+      maxAhrefsReferringDomains,
+      minSemrushReferringDomains,
+      maxSemrushReferringDomains,
       linkType,
       search,
       sortBy = 'createdAt',
@@ -188,11 +218,116 @@ export const browseWebsites = async (req, res) => {
       filter.linkType = linkType;
     }
     
+    // Domain Authority (DA) filter - 0 to 100
     if (minDA || maxDA) {
-      // Domain Authority is stored in metrics.domainAuthority
       filter['metrics.domainAuthority'] = {};
-      if (minDA) filter['metrics.domainAuthority'].$gte = parseFloat(minDA);
-      if (maxDA) filter['metrics.domainAuthority'].$lte = parseFloat(maxDA);
+      if (minDA) filter['metrics.domainAuthority'].$gte = Math.max(0, Math.min(100, parseFloat(minDA)));
+      if (maxDA) filter['metrics.domainAuthority'].$lte = Math.max(0, Math.min(100, parseFloat(maxDA)));
+    }
+    
+    // Domain Rating (DR) filter - 0 to 100
+    if (minDR || maxDR) {
+      filter['metrics.dr'] = {};
+      if (minDR) filter['metrics.dr'].$gte = Math.max(0, Math.min(100, parseFloat(minDR)));
+      if (maxDR) filter['metrics.dr'].$lte = Math.max(0, Math.min(100, parseFloat(maxDR)));
+    }
+    
+    // Page Authority (PA) filter - 0 to 100
+    if (minPA || maxPA) {
+      filter['metrics.pa'] = {};
+      if (minPA) filter['metrics.pa'].$gte = Math.max(0, Math.min(100, parseFloat(minPA)));
+      if (maxPA) filter['metrics.pa'].$lte = Math.max(0, Math.min(100, parseFloat(maxPA)));
+    }
+    
+    // Spam Score (SS) filter - 0 to 100
+    if (minSS || maxSS) {
+      filter['metrics.ss'] = {};
+      if (minSS) filter['metrics.ss'].$gte = Math.max(0, Math.min(100, parseFloat(minSS)));
+      if (maxSS) filter['metrics.ss'].$lte = Math.max(0, Math.min(100, parseFloat(maxSS)));
+    }
+    
+    // Alexa Score (AS) filter - 0 to 100
+    if (minAS || maxAS) {
+      filter['metrics.as'] = {};
+      if (minAS) filter['metrics.as'].$gte = Math.max(0, Math.min(100, parseFloat(minAS)));
+      if (maxAS) filter['metrics.as'].$lte = Math.max(0, Math.min(100, parseFloat(maxAS)));
+    }
+    
+    // Trust Flow (TF) filter - 0 to 100
+    if (minTF || maxTF) {
+      filter['metrics.tf'] = {};
+      if (minTF) filter['metrics.tf'].$gte = Math.max(0, Math.min(100, parseFloat(minTF)));
+      if (maxTF) filter['metrics.tf'].$lte = Math.max(0, Math.min(100, parseFloat(maxTF)));
+    }
+    
+    // Citation Flow (CF) filter - 0 to 100
+    if (minCF || maxCF) {
+      filter['metrics.cf'] = {};
+      if (minCF) filter['metrics.cf'].$gte = Math.max(0, Math.min(100, parseFloat(minCF)));
+      if (maxCF) filter['metrics.cf'].$lte = Math.max(0, Math.min(100, parseFloat(maxCF)));
+    }
+    
+    // URL Rating (UR) filter - 0 to 100
+    if (minUR || maxUR) {
+      filter['metrics.ur'] = {};
+      if (minUR) filter['metrics.ur'].$gte = Math.max(0, Math.min(100, parseFloat(minUR)));
+      if (maxUR) filter['metrics.ur'].$lte = Math.max(0, Math.min(100, parseFloat(maxUR)));
+    }
+    
+    // Domain Age filter - 0 to 100 years
+    if (minDomainAge || maxDomainAge) {
+      filter['metrics.domainAge'] = {};
+      if (minDomainAge) filter['metrics.domainAge'].$gte = Math.max(0, Math.min(100, parseFloat(minDomainAge)));
+      if (maxDomainAge) filter['metrics.domainAge'].$lte = Math.max(0, Math.min(100, parseFloat(maxDomainAge)));
+    }
+    
+    // Ahrefs Traffic filter
+    if (minAhrefsTraffic || maxAhrefsTraffic) {
+      filter['metrics.ahrefsTraffic'] = {};
+      if (minAhrefsTraffic) filter['metrics.ahrefsTraffic'].$gte = Math.max(0, parseFloat(minAhrefsTraffic));
+      if (maxAhrefsTraffic) filter['metrics.ahrefsTraffic'].$lte = Math.max(0, parseFloat(maxAhrefsTraffic));
+    }
+    
+    // SEMrush Traffic filter
+    if (minSemrushTraffic || maxSemrushTraffic) {
+      filter['metrics.semrushTraffic'] = {};
+      if (minSemrushTraffic) filter['metrics.semrushTraffic'].$gte = Math.max(0, parseFloat(minSemrushTraffic));
+      if (maxSemrushTraffic) filter['metrics.semrushTraffic'].$lte = Math.max(0, parseFloat(maxSemrushTraffic));
+    }
+    
+    // Monthly Traffic filter
+    if (minMonthlyTraffic || maxMonthlyTraffic) {
+      filter['metrics.monthlyTraffic'] = {};
+      if (minMonthlyTraffic) filter['metrics.monthlyTraffic'].$gte = Math.max(0, parseFloat(minMonthlyTraffic));
+      if (maxMonthlyTraffic) filter['metrics.monthlyTraffic'].$lte = Math.max(0, parseFloat(maxMonthlyTraffic));
+    }
+    
+    // Ahrefs Keywords filter
+    if (minAhrefsKeywords || maxAhrefsKeywords) {
+      filter['metrics.ahrefsKeywords'] = {};
+      if (minAhrefsKeywords) filter['metrics.ahrefsKeywords'].$gte = Math.max(0, parseFloat(minAhrefsKeywords));
+      if (maxAhrefsKeywords) filter['metrics.ahrefsKeywords'].$lte = Math.max(0, parseFloat(maxAhrefsKeywords));
+    }
+    
+    // SEMrush Keywords filter
+    if (minSemrushKeywords || maxSemrushKeywords) {
+      filter['metrics.semrushKeywords'] = {};
+      if (minSemrushKeywords) filter['metrics.semrushKeywords'].$gte = Math.max(0, parseFloat(minSemrushKeywords));
+      if (maxSemrushKeywords) filter['metrics.semrushKeywords'].$lte = Math.max(0, parseFloat(maxSemrushKeywords));
+    }
+    
+    // Ahrefs Referring Domains filter
+    if (minAhrefsReferringDomains || maxAhrefsReferringDomains) {
+      filter['metrics.ahrefsReferringDomains'] = {};
+      if (minAhrefsReferringDomains) filter['metrics.ahrefsReferringDomains'].$gte = Math.max(0, parseFloat(minAhrefsReferringDomains));
+      if (maxAhrefsReferringDomains) filter['metrics.ahrefsReferringDomains'].$lte = Math.max(0, parseFloat(maxAhrefsReferringDomains));
+    }
+    
+    // SEMrush Referring Domains filter
+    if (minSemrushReferringDomains || maxSemrushReferringDomains) {
+      filter['metrics.semrushReferringDomains'] = {};
+      if (minSemrushReferringDomains) filter['metrics.semrushReferringDomains'].$gte = Math.max(0, parseFloat(minSemrushReferringDomains));
+      if (maxSemrushReferringDomains) filter['metrics.semrushReferringDomains'].$lte = Math.max(0, parseFloat(maxSemrushReferringDomains));
     }
     
     if (search) {
@@ -205,8 +340,24 @@ export const browseWebsites = async (req, res) => {
 
     // Build sort
     const sort = {};
-    // Validate sortBy parameter
-    const validSortFields = ['createdAt', 'domain', 'publishingPrice', 'metrics.domainAuthority'];
+    // Validate sortBy parameter and include all new SEO metrics
+    const validSortFields = [
+      'createdAt', 
+      'domain', 
+      'publishingPrice', 
+      'metrics.domainAuthority',
+      'metrics.dr',
+      'metrics.pa',
+      'metrics.ss',
+      'metrics.as',
+      'metrics.tf',
+      'metrics.cf',
+      'metrics.ur',
+      'metrics.domainAge',
+      'metrics.ahrefsTraffic',
+      'metrics.semrushTraffic',
+      'metrics.monthlyTraffic'
+    ];
     const validSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
     sort[validSortBy] = sortOrder === 'desc' ? -1 : 1;
 
@@ -355,6 +506,10 @@ export const getWebsiteDetails = async (req, res) => {
 
     const websiteDetails = {
       ...website.toObject(),
+      // Combine main category with additional categories for display
+      allCategories: website.category 
+        ? [website.category, ...(website.additionalCategories || [])] 
+        : (website.additionalCategories || []),
       statistics: {
         totalOrders,
         completedOrders,
@@ -373,8 +528,8 @@ export const getWebsiteDetails = async (req, res) => {
       sampleContent,
       pricing: {
         basePrice: website.publishingPrice,
-        copywritingPrice: website.copywritingPrice,
         homepagePrice: website.homepageAnnouncementPrice,
+        sensitiveTopicPrice: website.sensitiveContentExtraCharge,
         rushOrderSurcharge: website.publishingPrice * 0.5, // 50% surcharge
         bulkDiscounts: [
           { minOrders: 5, discount: 5 },
@@ -851,9 +1006,10 @@ export const getAdvertiserOrders = async (req, res) => {
     const advertiserId = req.user.id;
     const { 
       page = 1, 
-      limit = 10, 
+      limit = 20, 
       status,
       search,
+      dateRange,
       sortBy = 'createdAt',
       sortOrder = 'desc'
     } = req.query;
@@ -869,10 +1025,41 @@ export const getAdvertiserOrders = async (req, res) => {
         { title: { $regex: search, $options: 'i' } }
       ];
     }
+    
+    // Add date range filtering
+    if (dateRange && dateRange !== 'all') {
+      const now = new Date();
+      let dateFilter = {};
+      
+      switch (dateRange) {
+        case '7d':
+          dateFilter = { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) };
+          break;
+        case '30d':
+          dateFilter = { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) };
+          break;
+        case '90d':
+          dateFilter = { $gte: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000) };
+          break;
+      }
+      
+      filter.createdAt = dateFilter;
+    }
 
     // Build sort
     const sort = {};
-    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
+    // Handle different sort options
+    if (sortBy === 'createdAt') {
+      sort.createdAt = sortOrder === 'desc' ? -1 : 1; // -1 for desc, 1 for asc
+    } else if (sortBy === 'deadline') {
+      sort.deadline = sortOrder === 'asc' ? 1 : -1; // 1 for asc (soonest first), -1 for desc
+    } else if (sortBy === 'totalPrice') {
+      sort.totalPrice = sortOrder === 'asc' ? 1 : -1; // 1 for asc, -1 for desc
+    } else {
+      // Default sort
+      sort.createdAt = -1;
+    }
 
     const orders = await Order.find(filter)
       .populate('publisherId', 'firstName lastName email')

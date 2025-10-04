@@ -1,5 +1,11 @@
 import mongoose from 'mongoose';
 
+// Function to generate transactionId synchronously
+const generateTransactionId = function() {
+  // Generate a simple transactionId without database query to avoid async issues
+  return `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 const transactionSchema = new mongoose.Schema(
   {
     // Transaction identification
@@ -7,6 +13,7 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
+      default: generateTransactionId
     },
     
     // User and wallet references
@@ -68,7 +75,7 @@ const transactionSchema = new mongoose.Schema(
     
     // Related entities
     orderId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       ref: 'Order',
     },
     withdrawalId: {
@@ -168,9 +175,14 @@ const transactionSchema = new mongoose.Schema(
 
 // Pre-save middleware to generate transaction ID
 transactionSchema.pre('save', async function(next) {
+  console.log('Pre-save middleware called for transaction, transactionId exists:', !!this.transactionId);
   if (!this.transactionId) {
-    const count = await mongoose.model('Transaction').countDocuments();
-    this.transactionId = `TXN-${Date.now()}-${String(count + 1).padStart(6, '0')}`;
+    console.log('Generating new transactionId');
+    // Generate a simple transactionId without database query to avoid async issues
+    this.transactionId = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log('Generated transactionId:', this.transactionId);
+  } else {
+    console.log('Using existing transactionId:', this.transactionId);
   }
   next();
 });
