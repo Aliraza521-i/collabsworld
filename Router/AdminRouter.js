@@ -10,7 +10,8 @@ import {
   getAnalytics,
   manageUserAccount,
   updateWebsiteVerificationSettings,
-  getAllChats
+  getAllChats,
+  updateWebsiteMetrics // Add this import
 } from "../controller/AdminController.js";
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 import User from "../model/User.js";
@@ -150,6 +151,9 @@ router.put("/websites/:websiteId/pause", (req, res) => {
   req.body = { action: 'request_info', reason: 'Additional information required' };
   return reviewWebsite(req, res);
 });
+
+// Add new route to update website SEO metrics
+router.put("/websites/:websiteId/metrics", updateWebsiteMetrics);
 
 // Admin delete website route
 router.delete("/websites/:websiteId", async (req, res) => {

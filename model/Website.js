@@ -193,31 +193,57 @@ const websiteSchema = new mongoose.Schema(
     
     // Website metrics
     metrics: {
-      da: {  // Domain Authority
+      // Moz metrics
+      domainAuthority: {
         type: Number,
         default: 0,
         min: 0,
         max: 100,
       },
-      dr: {  // Domain Rating
+      da: {  // Alternative field name for DA
         type: Number,
         default: 0,
         min: 0,
         max: 100,
       },
-      monthlyTraffic: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      domainAuthority: {  // Alternative field name for DA
+      pageAuthority: {
         type: Number,
         default: 0,
         min: 0,
         max: 100,
       },
+      pa: {  // Alternative field name for PA
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+      spamScore: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+      ss: {  // Alternative field name for SS
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+      domainAge: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      
       // Ahrefs metrics
       ahrefsDomainRating: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+      dr: {  // Alternative field name for DR
         type: Number,
         default: 0,
         min: 0,
@@ -229,16 +255,29 @@ const websiteSchema = new mongoose.Schema(
         min: 0,
         max: 100,
       },
+      ur: {  // Alternative field name for UR
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
       ahrefsTraffic: {
         type: Number,
         default: 0,
         min: 0,
       },
-      // SEMrush metrics
-      semrushRank: {
+      ahrefsKeywords: {
         type: Number,
         default: 0,
         min: 0,
+      },
+      
+      // SEMrush metrics
+      semrushAuthorityScore: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
       },
       semrushTraffic: {
         type: Number,
@@ -250,14 +289,55 @@ const websiteSchema = new mongoose.Schema(
         default: 0,
         min: 0,
       },
-      // Additional metrics
-      pageAuthority: {
+      semrushReferringDomains: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      
+      // Majestic metrics
+      majesticTrustFlow: {
         type: Number,
         default: 0,
         min: 0,
         max: 100,
       },
+      tf: {  // Alternative field name for TF
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+      majesticCitationFlow: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+      cf: {  // Alternative field name for CF
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+      majesticTotalIndex: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      
+      // Additional metrics
       referringDomains: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      monthlyTraffic: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      organicTraffic: {
         type: Number,
         default: 0,
         min: 0,
@@ -272,11 +352,6 @@ const websiteSchema = new mongoose.Schema(
         default: 0,
         min: 0,
         max: 10,
-      },
-      organicTraffic: {
-        type: Number,
-        default: 0,
-        min: 0,
       }
     },
     

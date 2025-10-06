@@ -1044,6 +1044,44 @@ export const getAllChats = async (req, res) => {
   }
 };
 
+// Add new function to update website SEO metrics
+export const updateWebsiteMetrics = async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    const metricsData = req.body;
+
+    const website = await Website.findById(websiteId);
+    if (!website) {
+      return res.status(404).json({
+        ok: false,
+        message: "Website not found"
+      });
+    }
+
+    // Update metrics
+    if (metricsData.metrics) {
+      website.metrics = {
+        ...website.metrics,
+        ...metricsData.metrics
+      };
+    }
+
+    await website.save();
+
+    res.status(200).json({
+      ok: true,
+      message: "Website SEO metrics updated successfully",
+      data: website
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: "Failed to update website SEO metrics",
+      error: error.message
+    });
+  }
+};
+
 // Export the functions
 export default {
   getAdminDashboard,
@@ -1055,7 +1093,8 @@ export default {
   getAnalytics,
   manageUserAccount,
   updateWebsiteVerificationSettings,
-  getAllChats
+  getAllChats,
+  updateWebsiteMetrics // Add this export
 };
 
 
