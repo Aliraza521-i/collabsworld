@@ -17,6 +17,7 @@ import {
 import { getOrderDetails } from "../controller/OrderController.js";
 import { authenticateToken, requireRole as authorize } from "../middleware/auth.js";
 import { uploadMiddleware } from "../middleware/upload.js";
+import projectRouter from "./ProjectRouter.js";
 
 const router = express.Router();
 
@@ -26,6 +27,9 @@ router.get("/dashboard", getAdvertiserDashboard);
 // Apply authentication to all other routes
 router.use(authenticateToken);
 router.use(authorize(['advertiser']));
+
+// Project Management Routes
+router.use("/projects", projectRouter);
 
 // Analytics Routes
 router.get("/analytics", getOrderAnalytics);

@@ -16,6 +16,7 @@ import {
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 import User from "../model/User.js";
 import { Notification } from "../Models/NotificationModel.js";
+import projectRouter from "./AdminProjectRouter.js";
 
 const router = express.Router();
 
@@ -25,6 +26,9 @@ router.get("/dashboard", getAdminDashboard);
 // All other routes require admin authentication
 router.use(authenticateToken);
 router.use(requireAdmin);
+
+// Project Management Routes
+router.use("/projects", projectRouter);
 
 // Chat Management
 router.get("/chats", getAllChats);
