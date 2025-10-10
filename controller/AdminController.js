@@ -1082,6 +1082,108 @@ export const updateWebsiteMetrics = async (req, res) => {
   }
 };
 
+// Add new function to update user balance
+export const updateUserBalance = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { amount, action, description } = req.body; // action: 'add' or 'deduct'
+
+    // Validate input
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        ok: false,
+        message: "Invalid amount"
+      });
+    }
+
+    if (!action || !['add', 'deduct'].includes(action)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Valid action (add/deduct) is required"
+      });
+    }
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user || user.role === 'admin') {
+      return res.status(404).json({
+        ok: false,
+        message: "User not found or cannot be modified"
+      });
+    }
+
+    // Get or create user wallet
+    let wallet = await Wallet.findOne({ userId });
+    if (!wallet) {
+      wallet = await Wallet.create({ userId });
+    }
+
+    // Update wallet balance based on action
+    const oldBalance = wallet.balance;
+    let newBalance = oldBalance;
+    
+    if (action === 'add') {
+      wallet.balance += amount;
+      newBalance = wallet.balance;
+    } else if (action === 'deduct') {
+      if (wallet.balance < amount) {
+        return res.status(400).json({
+          ok: false,
+          message: "Insufficient balance"
+        });
+      }
+      wallet.balance -= amount;
+      newBalance = wallet.balance;
+    }
+
+    await wallet.save();
+
+    // Create transaction record
+    const transaction = new Transaction({
+      userId,
+      walletId: wallet._id,
+      type: 'adjustment',
+      amount: action === 'add' ? amount : -amount,
+      currency: wallet.currency,
+      description: description || `Admin ${action} funds`,
+      balanceBefore: oldBalance,
+      balanceAfter: newBalance,
+      status: 'completed'
+    });
+
+    await transaction.save();
+
+    // Send notification to user
+    await Notification.create({
+      userId: user._id,
+      userRole: user.role,
+      type: 'payment_received',
+      title: 'Account Balance Updated',
+      message: `Your account balance has been ${action === 'add' ? 'increased' : 'decreased'} by $${amount}. New balance: $${newBalance.toFixed(2)}`,
+      channels: {
+        email: { sent: true },
+        inApp: { delivered: true }
+      }
+    });
+
+    res.status(200).json({
+      ok: true,
+      message: `User balance ${action}ed successfully`,
+      data: {
+        wallet,
+        transaction
+      }
+    });
+  } catch (error) {
+    console.error('Error in updateUserBalance:', error);
+    res.status(500).json({
+      ok: false,
+      message: "Failed to update user balance",
+      error: error.message
+    });
+  }
+};
+
 // Export the functions
 export default {
   getAdminDashboard,
@@ -1094,7 +1196,8 @@ export default {
   manageUserAccount,
   updateWebsiteVerificationSettings,
   getAllChats,
-  updateWebsiteMetrics // Add this export
+  updateWebsiteMetrics,
+  updateUserBalance
 };
 
 

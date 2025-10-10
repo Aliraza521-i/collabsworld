@@ -1350,6 +1350,14 @@ export const createWebsiteChat = async (req, res) => {
       });
     }
 
+    // Check if websiteId is a valid ObjectId string
+    if (typeof websiteId !== 'string' || websiteId.length !== 24) {
+      return res.status(400).json({
+        ok: false,
+        message: "Invalid website ID format. Expected a 24-character hexadecimal string."
+      });
+    }
+
     if (!mongoose.Types.ObjectId.isValid(websiteId)) {
       return res.status(400).json({
         ok: false,

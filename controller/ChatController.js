@@ -105,18 +105,29 @@ export const getUserChats = async (req, res) => {
 
     const total = await Chat.countDocuments(filter);
 
-    // Mark user's unread messages
+    // Mark user's unread messages and add last message
     const chatsWithUnread = chats.map(chat => {
       const userParticipant = chat.participants.find(p => p.userId.toString() === userId);
       const unreadCount = chat.messages.filter(msg => 
         msg.senderId.toString() !== userId && 
         !msg.readBy.some(read => read.userId.toString() === userId)
       ).length;
+      
+      // Get the last message
+      let lastMessage = null;
+      if (chat.messages && chat.messages.length > 0) {
+        // Sort messages by createdAt to get the most recent one
+        const sortedMessages = [...chat.messages].sort((a, b) => 
+          new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        lastMessage = sortedMessages[0];
+      }
 
       return {
         ...chat.toObject(),
         unreadCount,
-        lastReadAt: userParticipant?.notifications?.lastReadAt
+        lastReadAt: userParticipant?.notifications?.lastReadAt,
+        lastMessage // Add last message to the chat data
       };
     });
 

@@ -350,7 +350,10 @@ class SocketService {
         type,
         replyTo,
         attachments,
-        isRead: [socket.userId], // Sender has read it
+        readBy: [{ 
+          userId: socket.userId, 
+          readAt: new Date() 
+        }], // Sender has read it
         editedAt: null,
         reactions: []
       };
@@ -381,6 +384,36 @@ class SocketService {
         chatId,
         message: messageForFrontend
       });
+      
+      // Also emit chat update to move chat to top of sidebar for all participants
+      const updatedChat = await Chat.findById(chatId)
+        .populate('participants.userId', 'firstName lastName email role')
+        .populate({
+          path: 'messages.senderId',
+          select: 'firstName lastName email role'
+        });
+      
+      if (updatedChat) {
+        // Get the last message
+        let lastMessage = null;
+        if (updatedChat.messages && updatedChat.messages.length > 0) {
+          // Sort messages by createdAt to get the most recent one
+          const sortedMessages = [...updatedChat.messages].sort((a, b) => 
+            new Date(b.createdAt) - new Date(a.createdAt)
+          );
+          lastMessage = sortedMessages[0];
+        }
+        
+        // Emit chat update to all participants
+        for (const participant of updatedChat.participants) {
+          const participantId = participant.userId._id.toString();
+          this.io.to(`user_${participantId}`).emit('chat_updated', {
+            chatId,
+            lastMessage,
+            lastActivity: new Date()
+          });
+        }
+      }
 
       // Send push notifications to offline users
       await this.sendNotificationsToOfflineUsers(chat, messageForFrontend);
@@ -424,6 +457,22 @@ class SocketService {
         readBy: socket.userId,
         readAt: new Date()
       });
+      
+      // Also update the chat's unread count for the user
+      const chat = await Chat.findById(chatId);
+      if (chat) {
+        // Find messages that are unread by this user
+        const unreadMessages = chat.messages.filter(msg => 
+          msg.senderId.toString() !== socket.userId && 
+          !msg.readBy.some(rb => rb.userId.toString() === socket.userId)
+        );
+        
+        // Emit updated unread count to the user
+        socket.emit('unread_count_updated', {
+          chatId,
+          count: unreadMessages.length
+        });
+      }
     } catch (error) {
       console.error('Error marking messages as read:', error);
     }
@@ -573,7 +622,13 @@ class SocketService {
         messageType: messageData.type,  // Changed from 'type' to 'messageType'
         replyTo: messageData.replyTo,
         attachments: messageData.attachments,
-        isRead: messageData.isRead,
+        readBy: messageData.isRead ? messageData.isRead.map(userId => ({
+          userId: userId,
+          readAt: new Date()
+        })) : [{
+          userId: messageData.sender,
+          readAt: new Date()
+        }],
         reactions: [],
         flags: {
           containsPersonalDetails: hasPersonalDetails
@@ -636,7 +691,13 @@ class SocketService {
         messageType: messageData.type,
         replyTo: messageData.replyTo,
         attachments: messageData.attachments || [],
-        isRead: messageData.isRead || [],
+        readBy: messageData.isRead ? messageData.isRead.map(userId => ({
+          userId: userId,
+          readAt: new Date()
+        })) : [{
+          userId: messageData.sender,
+          readAt: new Date()
+        }],
         reactions: [],
         flags: {
           containsPersonalDetails: hasPersonalDetails
@@ -656,7 +717,10 @@ class SocketService {
         { _id: chatId },
         {
           $addToSet: {
-            'messages.$[message].isRead': userId
+            'messages.$[message].readBy': {
+              userId: userId,
+              readAt: new Date()
+            }
           }
         },
         {

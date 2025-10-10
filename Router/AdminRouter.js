@@ -11,7 +11,8 @@ import {
   manageUserAccount,
   updateWebsiteVerificationSettings,
   getAllChats,
-  updateWebsiteMetrics // Add this import
+  updateWebsiteMetrics, // Add this import
+  updateUserBalance
 } from "../controller/AdminController.js";
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 import User from "../model/User.js";
@@ -36,6 +37,8 @@ router.get("/chats", getAllChats);
 // User Management
 router.get("/users", getAllUsers);
 router.put("/users/:userId/manage", manageUserAccount);
+router.put("/users/:userId/balance", updateUserBalance); // Add this line
+
 // Add missing user management routes
 router.put("/users/:userId/suspend", (req, res) => {
   req.body = { action: 'suspend', reason: req.body.reason || 'Admin action' };
